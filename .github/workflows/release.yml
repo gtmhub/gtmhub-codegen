@@ -22,8 +22,6 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-        with:
-          repository: "git@bitbucket.org:gtmhub/plugin-codegen.git"
-          ssh-key: "{{secrets.CODEGEN_REPO_CERT}}"
+    - name: Checkout dependencies
+      run: |
+        git clone ${{secrets.CODEGEN_PRIVATE_REPO_URL}}
