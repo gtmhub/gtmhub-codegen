@@ -30,11 +30,117 @@ jobs:
       with:
         go-version: 1.15
     - name: Build
-      run: make build VERSION=${{ github.event.inputs.version }}
+      run: make build VERSION=0.1.0
       working-directory: plugin-codegen
     - name: upload binary artifacts
       uses: actions/upload-artifact@v2
       with:
         name: binaries
         path: plugin-codegen/release/
-    
+  release:
+    needs: [build]
+    runs-on: macos-latest
+    steps:
+      - name: Download-Binaries
+        uses: actions/download-artifact@v2
+        with:
+          name: binaries
+          path: release/
+
+      - name: Import Code-Signing Certificates
+        uses: Apple-Actions/import-codesign-certs@v1
+        with:
+          # The certificates in a PKCS12 file encoded as a base64 string
+          p12-file-base64: ${{ secrets.APPLE_DEV_CERTIFICATE_P12_BASE64 }}
+          # The password used to import the PKCS12 file.
+          p12-password: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE_PASSWORD }}
+
+      - name: Install gon via HomeBrew for code signing and app notarization
+        run: |
+          brew tap mitchellh/gon
+          brew install mitchellh/gon/gon
+      - name: Sign the mac binaries with Gon
+        env:
+          AC_USERNAME: ${{ secrets.APPLE_DEV_USERNAME }}
+          AC_PASSWORD: ${{ secrets.APPLE_DEV_PASSWORD }}
+        run: make sign
+      - name: Zip up windows directory
+        run: |
+          zip -r gtmhub_windows.zip release/windows
+      - name: Zip up linux directory
+        run: |
+          tar -czvf gtmhub_linux.tar.gz --directory=release/linux gtmhub
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: 0.1.0
+          release_name: v0.1.0
+          draft: false
+          prerelease: false
+
+      - name: Upload windows binaries Zip
+        id: upload-release-asset-windows
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: gtmhub_windows.zip
+          asset_name: gtmhub_windows.zip
+          asset_content_type: application/zip
+      - name: Upload linux binaries Zip
+        id: upload-release-asset-linux
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: gtmhub_linux.tar.gz
+          asset_name: gtmhub_linux.tar.gz
+          asset_content_type: application/zip
+      - name: Upload macos binaries Zip
+        id: upload-release-asset-macos
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release/darwin/gtmhub_macos.zip
+          asset_name: gtmhub_macos.zip
+          asset_content_type: application/zip
+  update-homebrew:
+    runs-on: "ubuntu-latest"
+    needs: [release]
+    steps:
+      - name: Update homebrew formula
+        uses: docker://scorpias/update-homebrew-formula-action:latest
+        with:
+          packageName: "gtmhub-codegen"
+          accessToken: ${{ secrets.HOMEBREW_UPDATE_TOKEN }}
+          userName: ${{ secrets.HOMEBREW_UPDATE_USERNAME }}
+          tapRepo: "gtmhub/homebrew-gtmhub"
+          srcRepo: "gtmhub/gtmhub-codegen"
+#   update-choco-package:
+#     runs-on: windows-latest
+#     needs: [release]
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v2
+
+#       - name: Download-Binaries
+#         uses: actions/download-artifact@v2
+#         with:
+#           name: binaries
+#           path: release/
+
+#       - name: Copy Binaries
+#         run: copy release\windows\gtmhub.exe distribution\chocolatey\tools\gtmhub.exe
+#       - name: Copy License
+#         run: copy LICENSE distribution\chocolatey\tools\LICENSE.txt
+#       - name: choco pack
+#         run: choco pack distribution\chocolatey\gtmhub-cli.nuspec --version ${{ github.event.inputs.version }}
+#       - name: push the choco pack
+#         run: choco push gtmhub-cli.${{github.event.inputs.version}}.nupkg --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
