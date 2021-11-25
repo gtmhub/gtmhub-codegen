@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: RELEASE
 
 # Controls when the workflow will run
 on:
@@ -25,3 +25,16 @@ jobs:
     - name: Checkout dependencies
       run: |
         git clone ${{secrets.CODEGEN_PRIVATE_REPO_URL}}
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.15
+    - name: Build
+      run: make build VERSION=${{ github.event.inputs.version }}
+      working-directory: plugin-codegen
+    - name: upload binary artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: binaries
+        path: plugin-codegen/release/
+    
