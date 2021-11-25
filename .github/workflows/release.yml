@@ -25,5 +25,5 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
         with:
-          repository: {{secrets.CODEGEN_REPO_URL}}
-          ssh-key: {{secrets.CODEGEN_REPO_CERT}}
+          repository: '{{secrets.CODEGEN_REPO_URL}}'
+          ssh-key: '{{secrets.CODEGEN_REPO_CERT}}'
